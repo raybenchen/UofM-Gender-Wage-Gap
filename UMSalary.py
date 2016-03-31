@@ -133,16 +133,27 @@ tc2['male_uerr'] = abs(tc2['male_mean'] - tc2['male_max'])
 tc2['female_uerr'] = abs(tc2['female_mean'] - tc2['female_max'])
 tc2['female_lerr'] = abs(tc2['female_mean'] - tc2['female_min'])
 
-male_plot = tc2.plot(x='Title', y='male_mean', width=0, color='b', yerr=[tc2.male_lerr, tc2.male_uerr],
-                     kind='bar', error_kw=dict(ecolor='blue', lw=4, capsize=5, capthick=1))
+maledist_plot = tc2.plot(x='Title', y='male_mean', width=0, color='b', yerr=[tc2.male_lerr, tc2.male_uerr],
+                         kind='bar', error_kw=dict(ecolor='blue', lw=4, capsize=5, capthick=1))
 
-male_plot.set_ylim(0, 200000)
-tc2.plot(x='Title', y='female_mean', width=0, color='r', yerr=[tc2.female_lerr, tc2.female_uerr],
-         kind='bar', ax=male_plot, error_kw=dict(ecolor='r', lw=4, capsize=5, capthick=1))
-
+maledist_plot.set_ylim(0, 200000)
+femaledist_plot = tc2.plot(x='Title', y='female_mean', width=0, color='r', yerr=[tc2.female_lerr, tc2.female_uerr],
+                           kind='bar', ax=maledist_plot, error_kw=dict(ecolor='r', lw=4, capsize=5, capthick=1))
+femaledist_plot.set_title('Distribution of Salary Means by Title')
+femaledist_plot.set_ylabel('Salary')
 
 # Slice for statistically significant data points
-title_ctrl_sig = title_ctrl[title_ctrl.is_sig == 'yes']
+tc_sig = title_ctrl[title_ctrl.is_sig == 'yes']
+
+maledist_plot = tc.plot(x='Title', y='male_mean', width=0, color='b', yerr=[tc2.male_lerr, tc2.male_uerr],
+                        kind='bar', error_kw=dict(ecolor='blue', lw=4, capsize=5, capthick=1))
+
+maledist_plot.set_ylim(0, 200000)
+femaledist_plot = tc2.plot(x='Title', y='female_mean', width=0, color='r', yerr=[tc2.female_lerr, tc2.female_uerr],
+                           kind='bar', ax=maledist_plot, error_kw=dict(ecolor='r', lw=4, capsize=5, capthick=1))
+femaledist_plot.set_title('Distribution of Salary Means by Title')
+femaledist_plot.set_ylabel('Salary')
+
 
 # Plot wage ratio by titles
 tc_plot = title_ctrl_sig.plot(x='Title', y='Ratio', kind='barh', alpha=0.5, legend=None,
