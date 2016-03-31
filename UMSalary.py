@@ -122,7 +122,23 @@ for i in t_set:
 title_ctrl = pd.DataFrame(title_ctrl,
                           columns=['Title', 'male_mean', 'female_mean', 'Ratio', 'male_count', 'female_count',
                                    'male_interval', 'female_interval', 'is_sig']).sort_values(by='Ratio')
-title_ctrl
+# Plot interval distribution of salaries
+tc2 = title_ctrl.sort_values(by='male_mean')
+
+tc2[['male_min', 'male_max']] = tc2['male_interval'].apply(pd.Series)
+tc2[['female_min', 'female_max']] = tc2['female_interval'].apply(pd.Series)
+
+tc2['male_lerr'] = abs(tc2['male_mean'] - tc2['male_min'])
+tc2['male_uerr'] = abs(tc2['male_mean'] - tc2['male_max'])
+tc2['female_uerr'] = abs(tc2['female_mean'] - tc2['female_max'])
+tc2['female_lerr'] = abs(tc2['female_mean'] - tc2['female_min'])
+
+male_plot = tc2.plot(x='Title', y='male_mean', width=0, color='b', yerr=[tc2.male_lerr, tc2.male_uerr],
+                     kind='bar', error_kw=dict(ecolor='blue', lw=4, capsize=5, capthick=1))
+
+male_plot.set_ylim(0, 200000)
+tc2.plot(x='Title', y='female_mean', width=0, color='r', yerr=[tc2.female_lerr, tc2.female_uerr],
+         kind='bar', ax=male_plot, error_kw=dict(ecolor='r', lw=4, capsize=5, capthick=1))
 
 
 # Slice for statistically significant data points
@@ -157,14 +173,4 @@ td_ctrl_sig = td_ctrl[(td_ctrl.p_value <= 0.05)]
 print('done')
 
 
-###Bootstrapping
 
-
-def bootstrap(data, num_samples, statistic, alpha):
-    """Returns bootstrap estimate of 100.0*(1-alpha) CI for statistic."""
-    n = len(data)
-    idx = npr.randint(0, n, (num_samples, n))
-    samples = data[idx]
-    stat = np.sort(statistic(samples, 1))
-    return (stat[int((alpha / 2.0) * num_samples)],
-            stat[int((1 - alpha / 2.0) * num_samples)])
