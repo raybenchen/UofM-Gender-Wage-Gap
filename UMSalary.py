@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import numpy.random as npr
 from scipy.stats import ttest_ind
 import matplotlib.pyplot as plt
 import matplotlib
+import seaborn as sns
 
 matplotlib.style.use('ggplot')
 
@@ -41,14 +43,12 @@ salary_data = salary_data[salary_data.Salary != 0]
 salary_data['Title'] = salary_data.Title.str.upper()
 
 # create subsets of data
-
 males = salary_data[salary_data['gender'] == 'male']
 females = salary_data[salary_data['gender'] == 'female']
 unknowns = salary_data[salary_data['gender'] == 'unknown']
 m_f = salary_data[salary_data['gender'] != 'unknown']
 
 # create scatter plot of male v. female salaries
-
 salary_data['gender_int'] = np.nan
 salary_data.loc[salary_data['gender'] == 'male', 'gender_int'] = 0
 salary_data.loc[salary_data['gender'] == 'female', 'gender_int'] = 1
@@ -59,7 +59,6 @@ scatter.set_xlabel('Gender')
 scatter.set_title('Scatter Plot of Salaries by Gender')
 
 # create bar plots of female and male titles
-
 f_titles = females.Title.value_counts().head().plot(kind='bar', color='r', alpha=0.25, rot=0)
 
 m_titles = males.Title.value_counts().head().plot(kind='bar', color='r', alpha=0.25, rot=0)
@@ -79,27 +78,55 @@ f_tp.set_ylabel('Count')
 m_tp = males.Title.value_counts().head().plot(kind='bar', color='b', alpha=0.5, rot=0, title='Top Male Professions')
 m_tp.set_ylabel('Count')
 
-# Average salaries controlling for titles
+# Control for title, and see if the difference in salaries is significant with bootstrapping
 t_set = list(set(salary_data.Title))
 title_ctrl = []
 
+
+def bootstrap(data, num_samples, statistic, alpha):
+    """Returns bootstrap estimate of 100.0*(1-alpha) CI for statistic."""
+    n = len(data)
+    idx = npr.randint(0, n, (num_samples, n))
+    samples = data[idx]
+    stat = np.sort(statistic(samples, 1))
+    intvl = (int(stat[int((alpha / 2.0) * num_samples)]),
+             int(stat[int((1 - alpha / 2.0) * num_samples)]))
+    return intvl
+
 for i in t_set:
-    male_tc = males.loc[males.Title == i]['Salary']
-    female_tc = females.loc[females.Title == i]['Salary']
-    R = female_tc.mean() / male_tc.mean()
-    p = ttest_ind(male_tc, female_tc)[1]
-    male_n = len(male_tc)
-    female_n = len(female_tc)
-    title_ctrl.append((i, R, p, male_n, female_n))
+    salary_m = males.loc[males.Title == i]['Salary']
+    salary_f = females.loc[females.Title == i]['Salary']
+    male_n = len(salary_m)
+    female_n = len(salary_f)
+    R = salary_f.mean() / salary_m.mean()
+    if male_n >= 5 & female_n >= 5:
+        intvl_m = bootstrap(np.array(salary_m), 10000, np.mean, 0.05)
+        intvl_f = bootstrap(np.array(salary_f), 10000, np.mean, 0.05)
+        if salary_f.mean() > salary_m.mean():
+            if intvl_f[0] > intvl_m[1]:
+                is_sig = 'yes'
+            else:
+                is_sig = 'no'
+        else:
+            if intvl_m[0] > intvl_f[1]:
+                is_sig = 'yes'
+            else:
+                is_sig = 'no'
+
+        title_ctrl.append((i, salary_m.mean(), salary_f.mean(), R, male_n, female_n, intvl_m, intvl_f, is_sig))
+        print('done with ', i)
+    else:
+        pass
 
 # Convert to dataframe
-title_ctrl = pd.DataFrame(title_ctrl, columns=['Title', 'Ratio', 'p_value', 'male_count', 'female_count']).sort_values(
-    by='Ratio')
+title_ctrl = pd.DataFrame(title_ctrl,
+                          columns=['Title', 'male_mean', 'female_mean', 'Ratio', 'male_count', 'female_count',
+                                   'male_interval', 'female_interval', 'is_sig']).sort_values(by='Ratio')
+title_ctrl
+
 
 # Slice for statistically significant data points
-title_ctrl_sig = title_ctrl[
-    (title_ctrl['p_value'] <= 0.05) & (title_ctrl['male_count'] >= 25) & (title_ctrl['female_count'] >= 25)]
-title_ctrl_sig2 = title_ctrl[(title_ctrl['p_value'] <= 0.05)]
+title_ctrl_sig = title_ctrl[title_ctrl.is_sig == 'yes']
 
 # Plot wage ratio by titles
 tc_plot = title_ctrl_sig.plot(x='Title', y='Ratio', kind='barh', alpha=0.5, legend=None,
@@ -126,3 +153,18 @@ for i in titles:
 td_ctrl = pd.DataFrame(td_ctrl, columns=['Title', 'Department', 'R', 'p_value', 'male_count', 'female_count'])
 
 td_ctrl_sig = td_ctrl[(td_ctrl.p_value <= 0.05)]
+
+print('done')
+
+
+###Bootstrapping
+
+
+def bootstrap(data, num_samples, statistic, alpha):
+    """Returns bootstrap estimate of 100.0*(1-alpha) CI for statistic."""
+    n = len(data)
+    idx = npr.randint(0, n, (num_samples, n))
+    samples = data[idx]
+    stat = np.sort(statistic(samples, 1))
+    return (stat[int((alpha / 2.0) * num_samples)],
+            stat[int((1 - alpha / 2.0) * num_samples)])
