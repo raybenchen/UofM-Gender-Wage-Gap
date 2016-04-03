@@ -8,16 +8,23 @@ import seaborn as sns
 
 matplotlib.style.use('ggplot')
 
+# Define colors for plot in RGB
+red = (214 / 255, 39 / 255, 40 / 255)
+blue = (31 / 255, 119 / 255, 180 / 255)
+red2 = (237 / 255, 102 / 255, 93 / 255)
+blue2 = (114 / 255, 158 / 255, 206 / 255)
+
+# Pull data from website and clean
 salary_url = 'http://umsalary.info/titlesearch.php?Title=%&Year=0&Campus=0'
 salary_data = pd.read_html(salary_url)[2]
 
-# Rename columns
+"""Rename columns"""
 salary_data.columns = salary_data.iloc[1]
 salary_data = salary_data.iloc[2:]
 salary_data = salary_data.rename(columns={'Deprtment': 'Department', 'FTR (Salary)': 'Salary'})
 salary_data.head()
 
-# Delete rows containing google_ad_client
+"""Delete rows with google client id"""
 ad_client = '<!--  google_ad_client = "pub-1413020312572192";  /* 728x15, created 2/10/09 */  ' \
             'google_ad_slot = "5343307882";  google_ad_width = 728;  google_ad_height = 15;  //-->'
 
@@ -49,19 +56,28 @@ unknowns = salary_data[salary_data['gender'] == 'unknown']
 m_f = salary_data[salary_data['gender'] != 'unknown']
 
 # create scatter plot of male v. female salaries
-salary_data['gender_int'] = np.nan
-salary_data.loc[salary_data['gender'] == 'male', 'gender_int'] = 0
-salary_data.loc[salary_data['gender'] == 'female', 'gender_int'] = 1
+sns.set(font_scale=1)
+scatter = sns.stripplot(salary_data[salary_data['gender'] != 'unknown']['gender'],
+                        salary_data['Salary'], jitter=0.02, alpha=0.5)
+scatter.set_ylim(0, )
 
-scatter = salary_data.plot(x='gender_int', y='Salary', kind='scatter', s=50, xticks=[],
-                           alpha=0.25, yticks=[10000, 500000, 1000000, 1500000, 2000000, 2500000])
-scatter.set_xlabel('Gender')
-scatter.set_title('Scatter Plot of Salaries by Gender')
 
 # create bar plots of female and male titles
-f_titles = females.Title.value_counts().head().plot(kind='bar', color='r', alpha=0.25, rot=0)
+f_titles = females.Title.value_counts().head(25)
+f_means = [females[females.Title == i]['Salary'].mean() for i in list(f_titles.keys())]
+pd.Series(f_means, name='Avg Salary').plot(secondary_y=True, color=red, legend=True)
+f_plot = f_titles.plot(kind='bar', color=red2, alpha=0.8)
+f_plot.set_ylabel('Count'), f_plot.set_ylim(0, 1600), f_plot.right_ax.set_ylim(0, 200000),
+f_plot.right_ax.set_ylabel('Avg Salary')
+f_plot.set_title('Female Titles vs. Count & Avg Salary')
 
-m_titles = males.Title.value_counts().head().plot(kind='bar', color='r', alpha=0.25, rot=0)
+m_titles = males.Title.value_counts().head(25)
+m_means = [males[males.Title == i]['Salary'].mean() for i in list(m_titles.keys())]
+pd.Series(m_means, name='Avg Salary').plot(secondary_y=True, color=blue, legend=True)
+m_plot = m_titles.plot(kind='bar', color=blue2, alpha=0.8)
+m_plot.set_ylabel('Count'), m_plot.set_ylim(0, 1600), m_plot.right_ax.set_ylim(0, 200000)
+m_plot.right_ax.set_ylabel('Avg Salary')
+m_plot.set_title('Male Titles vs. Count & Avg Salary')
 
 # distribution plots
 f_dist = females.Salary.plot(kind='kde', title='Probability Density')
@@ -71,20 +87,12 @@ f_dist.set_xlabel('Salary')
 m_dist = males.Salary.plot(kind='kde', legend=True, ax=f_dist)
 m_dist.legend(['Female', 'Male'])
 
-# Top Professions
-f_tp = females.Title.value_counts().head().plot(kind='bar', color='r', alpha=0.5, rot=0, title='Top Female Professions')
-f_tp.set_ylabel('Count')
-
-m_tp = males.Title.value_counts().head().plot(kind='bar', color='b', alpha=0.5, rot=0, title='Top Male Professions')
-m_tp.set_ylabel('Count')
-
 # Control for title, and see if the difference in salaries is significant with bootstrapping
 t_set = list(set(salary_data.Title))
 title_ctrl = []
 
 
 def bootstrap(data, num_samples, statistic, alpha):
-    """Returns bootstrap estimate of 100.0*(1-alpha) CI for statistic."""
     n = len(data)
     idx = npr.randint(0, n, (num_samples, n))
     samples = data[idx]
@@ -133,55 +141,59 @@ tc2['male_uerr'] = abs(tc2['male_mean'] - tc2['male_max'])
 tc2['female_uerr'] = abs(tc2['female_mean'] - tc2['female_max'])
 tc2['female_lerr'] = abs(tc2['female_mean'] - tc2['female_min'])
 
-maledist_plot = tc2.plot(x='Title', y='male_mean', width=0, color='b', yerr=[tc2.male_lerr, tc2.male_uerr],
-                         kind='bar', error_kw=dict(ecolor='blue', lw=4, capsize=5, capthick=1))
+maledist_plot = tc2.plot(x='Title', y='male_mean', color=blue2, yerr=[tc2.male_lerr, tc2.male_uerr],
+                         kind='bar', width=0, error_kw=dict(ecolor=blue2, lw=4, capsize=5, capthick=1))
 
 maledist_plot.set_ylim(0, 200000)
-femaledist_plot = tc2.plot(x='Title', y='female_mean', width=0, color='r', yerr=[tc2.female_lerr, tc2.female_uerr],
-                           kind='bar', ax=maledist_plot, error_kw=dict(ecolor='r', lw=4, capsize=5, capthick=1))
+femaledist_plot = tc2.plot(x='Title', y='female_mean', color=red2, yerr=[tc2.female_lerr, tc2.female_uerr],
+                           kind='bar', width=0, ax=maledist_plot,
+                           error_kw=dict(ecolor=red2, lw=4, capsize=5, capthick=1))
 femaledist_plot.set_title('Distribution of Salary Means by Title')
 femaledist_plot.set_ylabel('Salary')
 
 # Slice for statistically significant data points
 tc_sig = title_ctrl[title_ctrl.is_sig == 'yes']
 
-maledist_plot = tc.plot(x='Title', y='male_mean', width=0, color='b', yerr=[tc2.male_lerr, tc2.male_uerr],
-                        kind='bar', error_kw=dict(ecolor='blue', lw=4, capsize=5, capthick=1))
+# Plot wage ratio deviation by titles
+tc_sig['ratio_dev'] = tc_sig.Ratio - 1
+tc_plot = tc_sig.plot(x='Title', y='ratio_dev', kind='barh', alpha=1, legend=None,
+                      title='Wage Ratio Deviation by Profession', color=4 * [blue] + 3 * [red])
+tc_plot.set_xlim(-0.4, 0.4)
+tc_plot.set_xlabel('Wage Ratio Deviation')
 
-maledist_plot.set_ylim(0, 200000)
-femaledist_plot = tc2.plot(x='Title', y='female_mean', width=0, color='r', yerr=[tc2.female_lerr, tc2.female_uerr],
-                           kind='bar', ax=maledist_plot, error_kw=dict(ecolor='r', lw=4, capsize=5, capthick=1))
-femaledist_plot.set_title('Distribution of Salary Means by Title')
-femaledist_plot.set_ylabel('Salary')
-
-
-# Plot wage ratio by titles
-tc_plot = title_ctrl_sig.plot(x='Title', y='Ratio', kind='barh', alpha=0.5, legend=None,
-                              title='Wage Ratio by Profession', fontsize=15)
-tc_plot.set_xlabel('Wage Ratio (R)', fontsize=15)
-tc_plot.text(1, 0, 'p <= 0.05, n >= 25', fontsize=15)
+for index, patch in enumerate(tc_plot.patches):
+    if index > 3:
+        tc_plot.text(patch.get_width() / 2, patch.get_y() + 0.16, round(tc_sig.Ratio.iloc[index] - 1, 2))
+    else:
+        tc_plot.text(patch.get_width() / -2, patch.get_y() + 0.16, round(tc_sig.Ratio.iloc[index] - 1, 2))
 
 # Average salaries controlling for department & titles
-
-titles = list(set(title_ctrl_sig2['Title']))
+titles = list(set(tc_sig['Title']))
 td_ctrl = []
 for i in titles:
     deps = list(set(salary_data[salary_data.Title == i]['Department']))
     for j in deps:
-        male_tdc = males[(males.Title == i) & (males.Department == j)]['Salary']
-        female_tdc = females[(females.Title == i) & (females.Department == j)]['Salary']
-        male_count = len(male_tdc)
-        female_count = len(female_tdc)
-        R = female_tdc.mean() / male_tdc.mean()
-        p = ttest_ind(male_tdc, female_tdc)[1]
+        salary_male = males[(males.Title == i) & (males.Department == j)]['Salary']
+        salary_female = females[(females.Title == i) & (females.Department == j)]['Salary']
+        male_n = len(salary_male)
+        female_n = len(salary_female)
+        R = salary_female.mean() / salary_male.mean()
+        if male_n >= 3 & female_n >= 3:
+            intvl_m = bootstrap(np.array(salary_male), 10000, np.mean, 0.05)
+            intvl_f = bootstrap(np.array(salary_female), 10000, np.mean, 0.05)
+            if salary_f.mean() > salary_m.mean():
+                if intvl_f[0] > intvl_m[1]:
+                    is_sig = 'yes'
+                else:
+                    is_sig = 'no'
+            else:
+                if intvl_m[0] > intvl_f[1]:
+                    is_sig = 'yes'
+                else:
+                    is_sig = 'no'
+            td_ctrl.append((i, j, male_n, female_n, R, intvl_m, intvl_f, is_sig))
 
-        td_ctrl.append((i, j, R, p, male_count, female_count))
+td_ctrl = pd.DataFrame(td_ctrl, columns=['Title', 'Department', 'male_count', 'female_count', 'Ratio', 'male_interval',
+                                         'female_interval', 'is_sig'])
 
-td_ctrl = pd.DataFrame(td_ctrl, columns=['Title', 'Department', 'R', 'p_value', 'male_count', 'female_count'])
-
-td_ctrl_sig = td_ctrl[(td_ctrl.p_value <= 0.05)]
-
-print('done')
-
-
-
+tdc_sig = td_ctrl[(td_ctrl.is_sig == 'yes')]
