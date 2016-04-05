@@ -132,7 +132,7 @@ for i in t_set:
         print('done with ', i)
     else:
         pass
-
+print('done with Title control')
 # Convert to dataframe
 title_ctrl = pd.DataFrame(title_ctrl,
                           columns=['Title', 'male_mean', 'female_mean', 'm_range', 'f_range', 'Ratio', 'p_value',
