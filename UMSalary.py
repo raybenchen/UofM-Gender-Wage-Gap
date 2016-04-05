@@ -18,13 +18,13 @@ blue2 = (114 / 255, 158 / 255, 206 / 255)
 salary_url = 'http://umsalary.info/titlesearch.php?Title=%&Year=0&Campus=0'
 salary_data = pd.read_html(salary_url)[2]
 
-"""Rename columns"""
+# Rename columns
 salary_data.columns = salary_data.iloc[1]
 salary_data = salary_data.iloc[2:]
 salary_data = salary_data.rename(columns={'Deprtment': 'Department', 'FTR (Salary)': 'Salary'})
 salary_data.head()
 
-"""Delete rows with google client id"""
+# Delete rows with google client id
 ad_client = '<!--  google_ad_client = "pub-1413020312572192";  /* 728x15, created 2/10/09 */  ' \
             'google_ad_slot = "5343307882";  google_ad_width = 728;  google_ad_height = 15;  //-->'
 
@@ -88,10 +88,6 @@ m_dist = males.Salary.plot(kind='kde', legend=True, ax=f_dist)
 m_dist.legend(['Female', 'Male'])
 
 # Control for title, and see if the difference in salaries is significant with bootstrapping
-t_set = list(set(salary_data.Title))
-title_ctrl = []
-
-
 def bootstrap(data, num_samples, statistic, alpha):
     n = len(data)
     idx = npr.randint(0, n, (num_samples, n))
@@ -99,37 +95,49 @@ def bootstrap(data, num_samples, statistic, alpha):
     stat = np.sort(statistic(samples, 1))
     intvl = (int(stat[int((alpha / 2.0) * num_samples)]),
              int(stat[int((1 - alpha / 2.0) * num_samples)]))
-    return intvl
+    return (stat, intvl)
 
+
+def perm_test(xs, ys, nmc):
+    n, k = len(xs), 0
+    diff = np.abs(np.mean(xs) - np.mean(ys))
+    zs = np.concatenate([xs, ys])
+    for j in range(nmc):
+        np.random.shuffle(zs)
+        k += diff < np.abs(np.mean(zs[:n]) - np.mean(zs[n:]))
+    return k / nmc
+
+
+t_set = list(set(salary_data.Title))
+title_ctrl = []
 for i in t_set:
     salary_m = males.loc[males.Title == i]['Salary']
     salary_f = females.loc[females.Title == i]['Salary']
     male_n = len(salary_m)
     female_n = len(salary_f)
+    m_range = (salary_m.min(), salary_m.max())
+    f_range = (salary_f.min(), salary_f.max())
     R = salary_f.mean() / salary_m.mean()
-    if male_n >= 5 & female_n >= 5:
-        intvl_m = bootstrap(np.array(salary_m), 10000, np.mean, 0.05)
-        intvl_f = bootstrap(np.array(salary_f), 10000, np.mean, 0.05)
-        if salary_f.mean() > salary_m.mean():
-            if intvl_f[0] > intvl_m[1]:
-                is_sig = 'yes'
-            else:
-                is_sig = 'no'
-        else:
-            if intvl_m[0] > intvl_f[1]:
-                is_sig = 'yes'
-            else:
-                is_sig = 'no'
 
-        title_ctrl.append((i, salary_m.mean(), salary_f.mean(), R, male_n, female_n, intvl_m, intvl_f, is_sig))
+    if male_n >= 5 & female_n >= 5:
+        intvl_m = bootstrap(np.array(salary_m), 10000, np.mean, 0.05)[1]
+        intvl_f = bootstrap(np.array(salary_f), 10000, np.mean, 0.05)[1]
+        dist_m = bootstrap(np.array(salary_m), 10000, np.mean, 0.05)[0]
+        dist_f = bootstrap(np.array(salary_f), 10000, np.mean, 0.05)[0]
+        dist_diff = dist_m - dist_f
+        p = perm_test(salary_m, salary_f, 10000)
+
+        title_ctrl.append(
+            (i, salary_m.mean(), salary_f.mean(), m_range, f_range, R, p, male_n, female_n, intvl_m, intvl_f))
         print('done with ', i)
     else:
         pass
 
 # Convert to dataframe
 title_ctrl = pd.DataFrame(title_ctrl,
-                          columns=['Title', 'male_mean', 'female_mean', 'Ratio', 'male_count', 'female_count',
-                                   'male_interval', 'female_interval', 'is_sig']).sort_values(by='Ratio')
+                          columns=['Title', 'male_mean', 'female_mean', 'm_range', 'f_range', 'Ratio', 'p_value',
+                                   'male_count', 'female_count',
+                                   'male_interval', 'female_interval']).sort_values(by='Ratio')
 # Plot interval distribution of salaries
 tc2 = title_ctrl.sort_values(by='male_mean')
 
@@ -152,17 +160,17 @@ femaledist_plot.set_title('Distribution of Salary Means by Title')
 femaledist_plot.set_ylabel('Salary')
 
 # Slice for statistically significant data points
-tc_sig = title_ctrl[title_ctrl.is_sig == 'yes']
+tc_sig = title_ctrl[(title_ctrl.p_value < 0.05) & (abs(title_ctrl.Ratio - 1) > 0.001)]
 
 # Plot wage ratio deviation by titles
 tc_sig['ratio_dev'] = tc_sig.Ratio - 1
 tc_plot = tc_sig.plot(x='Title', y='ratio_dev', kind='barh', alpha=1, legend=None,
-                      title='Wage Ratio Deviation by Profession', color=4 * [blue] + 3 * [red])
+                      title='Wage Ratio Deviation by Profession', color=6 * [blue] + 4 * [red])
 tc_plot.set_xlim(-0.4, 0.4)
 tc_plot.set_xlabel('Wage Ratio Deviation')
 
 for index, patch in enumerate(tc_plot.patches):
-    if index > 3:
+    if index > 5:
         tc_plot.text(patch.get_width() / 2, patch.get_y() + 0.16, round(tc_sig.Ratio.iloc[index] - 1, 2))
     else:
         tc_plot.text(patch.get_width() / -2, patch.get_y() + 0.16, round(tc_sig.Ratio.iloc[index] - 1, 2))
@@ -178,22 +186,15 @@ for i in titles:
         male_n = len(salary_male)
         female_n = len(salary_female)
         R = salary_female.mean() / salary_male.mean()
-        if male_n >= 3 & female_n >= 3:
+        if male_n >= 5 & female_n >= 5:
             intvl_m = bootstrap(np.array(salary_male), 10000, np.mean, 0.05)
             intvl_f = bootstrap(np.array(salary_female), 10000, np.mean, 0.05)
-            if salary_f.mean() > salary_m.mean():
-                if intvl_f[0] > intvl_m[1]:
-                    is_sig = 'yes'
-                else:
-                    is_sig = 'no'
-            else:
-                if intvl_m[0] > intvl_f[1]:
-                    is_sig = 'yes'
-                else:
-                    is_sig = 'no'
-            td_ctrl.append((i, j, male_n, female_n, R, intvl_m, intvl_f, is_sig))
+            p = perm_test(salary_male, salary_female, 10000)
+            td_ctrl.append((i, j, male_n, female_n, R, p))
 
-td_ctrl = pd.DataFrame(td_ctrl, columns=['Title', 'Department', 'male_count', 'female_count', 'Ratio', 'male_interval',
-                                         'female_interval', 'is_sig'])
+        print('done with ', i, ', ', j)
 
-tdc_sig = td_ctrl[(td_ctrl.is_sig == 'yes')]
+td_ctrl = pd.DataFrame(td_ctrl, columns=['Title', 'Department', 'male_count', 'female_count', 'Ratio', 'p_value'])
+
+tdc_sig = td_ctrl[(td_ctrl.p_value < 0.05)].sort_values(by='Ratio')
+print('done with TD control')
