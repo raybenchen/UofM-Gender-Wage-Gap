@@ -46,7 +46,7 @@ salary_data['Salary'] = salary_data.Salary.replace('[\$,]', '', regex=True).asty
 
 salary_data = salary_data[salary_data.Salary != 0]
 
-# Convert titles to upper case
+# Convert titles to upper case 
 salary_data['Title'] = salary_data.Title.str.upper()
 
 # create subsets of data
